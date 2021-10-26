@@ -80,14 +80,15 @@ def main():
     args = parser.parse_args()
 
     if args.dataset.startswith('cifar'):
+        # 预计算的均值与方差
         normalize = transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
                                          std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
 
         transform_train = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(32, padding=4),  # 图像增扩， 随机切割后强制缩放到32像素
+            transforms.RandomHorizontalFlip(),     # 图像增扩， 一半概率的水平翻转
             transforms.ToTensor(),
-            normalize,
+            normalize,                             # 正则化
         ])
 
         transform_test = transforms.Compose([
@@ -161,7 +162,10 @@ def main():
 
     print("=> creating model '{}'".format(args.net_type))
     if args.net_type == 'pyramidnet_moex':
-        model = PYRM_MOEX.PyramidNet(args.dataset, args.depth, args.alpha, numberofclass,
+        model = PYRM_MOEX.PyramidNet(args.dataset,
+                                     args.depth,
+                                     args.alpha,
+                                     numberofclass,
                                      args.bottleneck)
     else:
         raise Exception('unknown network architecture: {}'.format(args.net_type))
@@ -236,7 +240,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         input = input.cuda()
         target = target.cuda()
 
-        r = np.random.rand(1)
+        r = np.random.rand(1) # 进行moex 的概率
         if r < args.moex_prob:
             # generate mixed sample
             rand_index = torch.randperm(input.size()[0]).cuda()
