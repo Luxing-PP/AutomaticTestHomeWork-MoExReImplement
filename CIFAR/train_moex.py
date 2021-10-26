@@ -4,6 +4,7 @@ import argparse
 import os
 import shutil
 import time
+import ssl
 
 import torch
 import torch.nn as nn
@@ -23,18 +24,20 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+ssl._create_default_https_context = ssl._create_unverified_context
+
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='Cutmix PyTorch CIFAR-10, CIFAR-100 and ImageNet-1k Training')
-parser.add_argument('--net_type', default='pyramidnet', type=str,
+parser.add_argument('--net_type', default='pyramidnet_moex', type=str,
                     help='networktype: resnet, and pyamidnet')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=90, type=int, metavar='N',
+parser.add_argument('--epochs', default=1, type=int, metavar='N',
                     help='number of total epochs to run')
-parser.add_argument('-b', '--batch_size', default=128, type=int,
+parser.add_argument('-b', '--batch_size', default=1, type=int,
                     metavar='N', help='mini-batch size (default: 256)')
 parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                     metavar='LR', help='initial learning rate')
@@ -48,7 +51,7 @@ parser.add_argument('--depth', default=32, type=int,
                     help='depth of the network (default: 32)')
 parser.add_argument('--no-bottleneck', dest='bottleneck', action='store_false',
                     help='to use basicblock for CIFAR datasets (default: bottleneck)')
-parser.add_argument('--dataset', dest='dataset', default='imagenet', type=str,
+parser.add_argument('--dataset', dest='dataset', default='cifar100', type=str,
                     help='dataset (options: cifar10, cifar100, and imagenet)')
 parser.add_argument('--no-verbose', dest='verbose', action='store_false',
                     help='to print the status at every iteration')
@@ -159,28 +162,30 @@ def main():
     print("=> creating model '{}'".format(args.net_type))
     if args.net_type == 'pyramidnet_moex':
         model = PYRM_MOEX.PyramidNet(args.dataset, args.depth, args.alpha, numberofclass,
-                                args.bottleneck)
+                                     args.bottleneck)
     else:
         raise Exception('unknown network architecture: {}'.format(args.net_type))
 
     model = torch.nn.DataParallel(model).cuda()
 
     print(model)
+    # 俺这也就能单核啊
     print('the number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()])))
 
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
 
+    # 动量优化
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
-                                weight_decay=args.weight_decay, nesterov=True)
-
+                                weight_decay=args.weight_decay,
+                                nesterov=True)
 
     cudnn.benchmark = True
 
-
     for epoch in range(0, args.epochs):
 
+        # 逐渐调小lr
         adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
@@ -339,8 +344,8 @@ def validate(val_loader, model, criterion, epoch):
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                   'Top 1-err {top1.val:.4f} ({top1.avg:.4f})\t'
                   'Top 5-err {top5.val:.4f} ({top5.avg:.4f})'.format(
-                   epoch, args.epochs, i, len(val_loader), batch_time=batch_time, loss=losses,
-                   top1=top1, top5=top5))
+                epoch, args.epochs, i, len(val_loader), batch_time=batch_time, loss=losses,
+                top1=top1, top5=top5))
 
     print('* Epoch: [{0}/{1}]\t Top 1-err {top1.avg:.3f}  Top 5-err {top5.avg:.3f}\t Test Loss {loss.avg:.3f}'.format(
         epoch, args.epochs, top1=top1, top5=top5, loss=losses))
