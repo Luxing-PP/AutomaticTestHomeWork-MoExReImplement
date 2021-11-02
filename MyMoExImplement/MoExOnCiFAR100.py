@@ -71,48 +71,12 @@ def main():
     global args, best_err1, best_err5
     args = parser.parse_args()
 
-    if args.dataset.startswith('cifar'):
-        # 预计算的均值与方差
-        normalize = transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
-                                         std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
-
-        transform_train = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),  # 图像增扩， 随机切割后强制缩放到32像素
-            transforms.RandomHorizontalFlip(),  # 图像增扩， 一半概率的水平翻转
-            transforms.ToTensor(),
-            normalize,  # 正则化
-        ])
-
-        transform_test = transforms.Compose([
-            transforms.ToTensor(),
-            normalize
-        ])
-
-        if args.dataset == 'cifar100':
-            train_loader = torch.utils.data.DataLoader(
-                datasets.CIFAR100('../data', train=True, download=True, transform=transform_train),
-                batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
-            val_loader = torch.utils.data.DataLoader(
-                datasets.CIFAR100('../data', train=False, transform=transform_test),
-                batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
-            numberofclass = 100
-        elif args.dataset == 'cifar10':
-            train_loader = torch.utils.data.DataLoader(
-                datasets.CIFAR10('../data', train=True, download=True, transform=transform_train),
-                batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
-            val_loader = torch.utils.data.DataLoader(
-                datasets.CIFAR10('../data', train=False, transform=transform_test),
-                batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
-            numberofclass = 10
-        else:
-            raise Exception('unknown dataset: {}'.format(args.dataset))
-    else:
-        raise Exception('unknown dataset: {}'.format(args.dataset))
+    train_loader, val_loader, numOfClass = loadData()
 
     model = PYRM_MOEX.PyramidNet(args.dataset,
                                  args.depth,
                                  args.alpha,
-                                 numberofclass,
+                                 numOfClass,
                                  args.bottleneck)
 
     model = torch.nn.DataParallel(model).cuda()
@@ -147,10 +111,50 @@ def main():
         best_err5 = best_err5 if (err1 <= best_err1) else err5
         print('Current best accuracy (top-1 and 5 error):', best_err1, best_err5)
 
-    f = open('train_moex.txt', 'a+')
+    # Save Result
+    f = open('MoExRes.txt', 'a+')
     f.write('lam = ' + str(args.lam) + ': Best accuracy (top-1 and 5 error):' + str(best_err1) + ', ' + str(best_err5))
     print('Best accuracy (top-1 and 5 error):', best_err1, best_err5)
     f.close()
+
+
+def loadData():
+    # 预计算的均值与方差
+    normalize = transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
+                                     std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
+
+    transform_train = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),  # 图像增扩， 随机切割后强制缩放到32像素
+        transforms.RandomHorizontalFlip(),  # 图像增扩， 一半概率的水平翻转
+        transforms.ToTensor(),
+        normalize,  # 正则化
+    ])
+
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+        normalize
+    ])
+
+    if args.dataset == 'cifar100':
+        train_loader = torch.utils.data.DataLoader(
+            datasets.CIFAR100('../data', train=True, download=True, transform=transform_train),
+            batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
+        val_loader = torch.utils.data.DataLoader(
+            datasets.CIFAR100('../data', train=False, transform=transform_test),
+            batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
+        numberofclass = 100
+    elif args.dataset == 'cifar10':
+        train_loader = torch.utils.data.DataLoader(
+            datasets.CIFAR10('../data', train=True, download=True, transform=transform_train),
+            batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
+        val_loader = torch.utils.data.DataLoader(
+            datasets.CIFAR10('../data', train=False, transform=transform_test),
+            batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
+        numberofclass = 10
+    else:
+        raise Exception('unknown dataset: {}'.format(args.dataset))
+
+    return train_loader, val_loader, numberofclass
 
 
 # TSN代码风格
