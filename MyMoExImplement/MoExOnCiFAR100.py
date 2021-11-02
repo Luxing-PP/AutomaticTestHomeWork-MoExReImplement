@@ -17,7 +17,6 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 import pyramidnet_moex as PYRM_MOEX
-import utils
 import numpy as np
 
 import warnings
@@ -57,24 +56,26 @@ parser.add_argument('--no-verbose', dest='verbose', action='store_false',
                     help='to print the status at every iteration')
 parser.add_argument('--alpha', default=240, type=float,
                     help='number of new channel increases per depth (default: 300)')
-parser.add_argument('--expname', default='TEST', type=str,
-                    help='name of experiment')
+
 parser.add_argument('--beta', default=1.0, type=float,
                     help='hyperparameter beta')
-parser.add_argument('--cutmix_prob', default=0, type=float,
-                    help='cutmix probability')
-#todo check
+
+# todo check
 parser.add_argument('--moex_prob', default=0.25, type=float,
                     help='moex_probability')
 parser.add_argument('--lam', default=0.5, type=float,
                     help='moex probability')
-
 
 parser.set_defaults(bottleneck=True)
 parser.set_defaults(verbose=True)
 
 best_err1 = 100
 best_err5 = 100
+
+'''
+Dataset: CiFar100
+model:pyramidnet
+'''
 
 
 def main():
@@ -88,9 +89,9 @@ def main():
 
         transform_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),  # 图像增扩， 随机切割后强制缩放到32像素
-            transforms.RandomHorizontalFlip(),     # 图像增扩， 一半概率的水平翻转
+            transforms.RandomHorizontalFlip(),  # 图像增扩， 一半概率的水平翻转
             transforms.ToTensor(),
-            normalize,                             # 正则化
+            normalize,  # 正则化
         ])
 
         transform_test = transforms.Compose([
@@ -116,49 +117,6 @@ def main():
             numberofclass = 10
         else:
             raise Exception('unknown dataset: {}'.format(args.dataset))
-
-    elif args.dataset == 'imagenet':
-        traindir = os.path.join('/scratch/imagenet/train')
-        valdir = os.path.join('/scratch/imagenet/val')
-        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                         std=[0.229, 0.224, 0.225])
-
-        jittering = utils.ColorJitter(brightness=0.4, contrast=0.4,
-                                      saturation=0.4)
-        lighting = utils.Lighting(alphastd=0.1,
-                                  eigval=[0.2175, 0.0188, 0.0045],
-                                  eigvec=[[-0.5675, 0.7192, 0.4009],
-                                          [-0.5808, -0.0045, -0.8140],
-                                          [-0.5836, -0.6948, 0.4203]])
-
-        train_dataset = datasets.ImageFolder(
-            traindir,
-            transforms.Compose([
-                transforms.RandomResizedCrop(224),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                jittering,
-                lighting,
-                normalize,
-            ]))
-
-        train_sampler = None
-
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-            num_workers=args.workers, pin_memory=True, sampler=train_sampler)
-
-        val_loader = torch.utils.data.DataLoader(
-            datasets.ImageFolder(valdir, transforms.Compose([
-                transforms.Resize(256),
-                transforms.CenterCrop(224),
-                transforms.ToTensor(),
-                normalize,
-            ])),
-            batch_size=args.batch_size, shuffle=False,
-            num_workers=args.workers, pin_memory=True)
-        numberofclass = 1000
-
     else:
         raise Exception('unknown dataset: {}'.format(args.dataset))
 
@@ -187,11 +145,10 @@ def main():
                                 weight_decay=args.weight_decay,
                                 nesterov=True)
 
-    # Cuda的自优化
+    # CUDA 自优化
     cudnn.benchmark = True
 
     for epoch in range(0, args.epochs):
-
         # lr修正
         adjust_learning_rate(optimizer, epoch)
 
@@ -208,14 +165,6 @@ def main():
             best_err5 = err5
 
         print('Current best accuracy (top-1 and 5 error):', best_err1, best_err5)
-        save_checkpoint({
-            'epoch': epoch,
-            'arch': args.net_type,
-            'state_dict': model.state_dict(),
-            'best_err1': best_err1,
-            'best_err5': best_err5,
-            'optimizer': optimizer.state_dict(),
-        }, is_best)
 
     f = open('train_moex.txt', 'a+')
     f.write('lam = ' + str(args.lam) + ': Best accuracy (top-1 and 5 error):' + str(best_err1) + ', ' + str(best_err5))
@@ -223,6 +172,8 @@ def main():
     f.close()
 
     # TSN代码风格
+
+
 def train(train_loader, model, criterion, optimizer, epoch):
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -243,7 +194,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         input = input.cuda()
         target = target.cuda()
 
-        r = np.random.rand(1) # 进行moex 的概率
+        r = np.random.rand(1)  # 进行moex 的概率
         if r < args.moex_prob:
             # generate mixed sample
             rand_index = torch.randperm(input.size()[0]).cuda()
@@ -296,25 +247,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
     return losses.avg
 
 
-# def rand_bbox(size, lam):
-#     W = size[2]
-#     H = size[3]
-#     cut_rat = np.sqrt(1. - lam)
-#     cut_w = np.int(W * cut_rat)
-#     cut_h = np.int(H * cut_rat)
-#
-#     # uniform
-#     cx = np.random.randint(W)
-#     cy = np.random.randint(H)
-#
-#     bbx1 = np.clip(cx - cut_w // 2, 0, W)
-#     bby1 = np.clip(cy - cut_h // 2, 0, H)
-#     bbx2 = np.clip(cx + cut_w // 2, 0, W)
-#     bby2 = np.clip(cy + cut_h // 2, 0, H)
-#
-#     return bbx1, bby1, bbx2, bby2
-
-
 def validate(val_loader, model, criterion, epoch):
     batch_time = AverageMeter()
     losses = AverageMeter()
@@ -359,16 +291,6 @@ def validate(val_loader, model, criterion, epoch):
     return top1.avg, top5.avg, losses.avg
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
-    directory = "runs/%s/" % (args.expname)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    filename = directory + filename
-    torch.save(state, filename)
-    if is_best:
-        shutil.copyfile(filename, 'runs/%s/' % (args.expname) + 'model_best.pth.tar')
-
-
 class AverageMeter(object):
     """Computes and stores the average and current value"""
 
@@ -390,14 +312,7 @@ class AverageMeter(object):
 
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    if args.dataset.startswith('cifar'):
-        lr = args.lr * (0.1 ** (epoch // (args.epochs * 0.5))) * (0.1 ** (epoch // (args.epochs * 0.75)))
-    elif args.dataset == ('imagenet'):
-        if args.epochs == 300:
-            lr = args.lr * (0.1 ** (epoch // 75))
-        else:
-            lr = args.lr * (0.1 ** (epoch // 30))
-
+    lr = args.lr * (0.1 ** (epoch // (args.epochs * 0.5))) * (0.1 ** (epoch // (args.epochs * 0.75)))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
@@ -418,13 +333,13 @@ def accuracy(output, target, topk=(1,)):
     batch_size = target.size(0)
 
     _, pred = output.topk(maxk, 1, True, True)
-    pred = pred.t() #转置
-    toCmp = target.view(1, -1).expand_as(pred) #骚啊0 0 把一个target弄成了K个
+    pred = pred.t()  # 转置
+    toCmp = target.view(1, -1).expand_as(pred)  # 骚啊0 0 把一个target弄成了K个
     correct = pred.eq(toCmp)
 
     res = []
     for k in topk:
-        #todo check
+        # todo check
         correct_k = correct[:k].contiguous().view(-1).float().sum(0, keepdim=True)
         wrong_k = batch_size - correct_k
         res.append(wrong_k.mul_(100.0 / batch_size))
