@@ -1,8 +1,4 @@
-# original code: https://github.com/dyhan0920/PyramidNet-PyTorch/blob/master/train.py
-
 import argparse
-import os
-import shutil
 import time
 import ssl
 
@@ -15,7 +11,6 @@ import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
-import torchvision.models as models
 import pyramidnet_moex as PYRM_MOEX
 import numpy as np
 
@@ -25,13 +20,7 @@ warnings.filterwarnings("ignore")
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
-model_names = sorted(name for name in models.__dict__
-                     if name.islower() and not name.startswith("__")
-                     and callable(models.__dict__[name]))
-
-parser = argparse.ArgumentParser(description='Cutmix PyTorch CIFAR-10, CIFAR-100 and ImageNet-1k Training')
-parser.add_argument('--net_type', default='pyramidnet_moex', type=str,
-                    help='networktype: resnet, and pyamidnet')
+parser = argparse.ArgumentParser(description='PyTorch CIFAR-10, CIFAR-100 Training')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=5, type=int, metavar='N',
@@ -120,20 +109,15 @@ def main():
     else:
         raise Exception('unknown dataset: {}'.format(args.dataset))
 
-    print("=> creating model '{}'".format(args.net_type))
-    if args.net_type == 'pyramidnet_moex':
-        model = PYRM_MOEX.PyramidNet(args.dataset,
-                                     args.depth,
-                                     args.alpha,
-                                     numberofclass,
-                                     args.bottleneck)
-    else:
-        raise Exception('unknown network architecture: {}'.format(args.net_type))
+    model = PYRM_MOEX.PyramidNet(args.dataset,
+                                 args.depth,
+                                 args.alpha,
+                                 numberofclass,
+                                 args.bottleneck)
 
     model = torch.nn.DataParallel(model).cuda()
 
     print(model)
-    # 俺这也就能单核啊
     print('the number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()])))
 
     # define loss function (criterion) and optimizer
@@ -158,12 +142,9 @@ def main():
         # evaluate on validation set
         err1, err5, val_loss = validate(val_loader, model, criterion, epoch)
 
-        # remember best prec@1 and save checkpoint
-        is_best = err1 <= best_err1
+        # remember best prec@1
         best_err1 = min(err1, best_err1)
-        if is_best:
-            best_err5 = err5
-
+        best_err5 = best_err5 if (err1 <= best_err1) else err5
         print('Current best accuracy (top-1 and 5 error):', best_err1, best_err5)
 
     f = open('train_moex.txt', 'a+')
@@ -171,9 +152,8 @@ def main():
     print('Best accuracy (top-1 and 5 error):', best_err1, best_err5)
     f.close()
 
-    # TSN代码风格
 
-
+# TSN代码风格
 def train(train_loader, model, criterion, optimizer, epoch):
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -339,7 +319,6 @@ def accuracy(output, target, topk=(1,)):
 
     res = []
     for k in topk:
-        # todo check
         correct_k = correct[:k].contiguous().view(-1).float().sum(0, keepdim=True)
         wrong_k = batch_size - correct_k
         res.append(wrong_k.mul_(100.0 / batch_size))
