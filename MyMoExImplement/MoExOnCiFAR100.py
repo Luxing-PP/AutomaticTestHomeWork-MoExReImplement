@@ -45,7 +45,6 @@ parser.add_argument('--no-verbose', dest='verbose', action='store_false',
                     help='to print the status at every iteration')
 parser.add_argument('--alpha', default=240, type=float,
                     help='number of new channel increases per depth (default: 300)')
-
 parser.add_argument('--beta', default=1.0, type=float,
                     help='hyperparameter beta')
 
@@ -61,6 +60,7 @@ parser.set_defaults(verbose=True)
 best_err1 = 100
 best_err5 = 100
 
+
 '''
 Dataset: CiFar100
 model:pyramidnet
@@ -74,8 +74,8 @@ def main():
     train_loader, val_loader, numOfClass = loadData()
 
     model = PYRM_MOEX.PyramidNet(args.dataset,
-                                 args.depth,
-                                 args.alpha,
+                                 200,
+                                 240,
                                  numOfClass,
                                  args.bottleneck)
 
@@ -106,7 +106,7 @@ def main():
         # evaluate on validation set
         err1, err5, val_loss = validate(val_loader, model, criterion, epoch)
 
-        # remember best prec@1
+        # remember best prediction
         best_err1 = min(err1, best_err1)
         best_err5 = best_err5 if (err1 <= best_err1) else err5
         print('Current best accuracy (top-1 and 5 error):', best_err1, best_err5)
