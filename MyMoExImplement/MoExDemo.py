@@ -3,6 +3,7 @@ from torchvision.transforms import transforms
 from PIL import Image
 
 
+# calculate data's h,μ,σ
 def normalize(x):
     mean = x.mean(dim=1, keepdim=True)
     std = x.var(dim=1, keepdim=True).sqrt()
@@ -10,12 +11,14 @@ def normalize(x):
     return x, mean, std
 
 
-def momentExchange(x, beta, gamma):
-    x.mul_(gamma)
-    x.add_(beta)
+# rebuild data by offered h,μ,σ
+def reverse_normalize(x, mean, std):
+    x.mul_(std)
+    x.add_(mean)
     return x
 
 
+# Mix the moment of momentImage into featureImage
 def MoEx(featureImage, momentImage):
     transformImgToTen = transforms.Compose([
         transforms.ToTensor()
@@ -31,15 +34,16 @@ def MoEx(featureImage, momentImage):
     # MoEx
     hA, mA, vA = normalize(tensor1)
     hB, mB, vB = normalize(tensor2)
-    MoExOutput = momentExchange(hA, mB, vB)
+    MoExOutput = reverse_normalize(hA, mB, vB)
     return transformTenToImg(MoExOutput)
 
 
 # implement by standard Normalize , show the basic concept/idea of MoEx
 if __name__ == '__main__':
     # 大体上认为变换完的label应该还是与FeatureImage本来的label相同
-    FeatureImage = Image.open("ImageSample/image (1).jpg")
-    MomentImage = Image.open("ImageSample/image (2).jpg")
+    FeatureImage = Image.open("ImageSample/FeatureImg.jpg")
+    MomentImage = Image.open("ImageSample/MomentImg.jpg")
 
     PIL = MoEx(FeatureImage, MomentImage)
     PIL.show()
+    PIL.save("ImageSample/output/output.jpg")

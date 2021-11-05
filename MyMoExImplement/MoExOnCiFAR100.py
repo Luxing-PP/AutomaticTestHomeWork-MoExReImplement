@@ -49,9 +49,9 @@ parser.add_argument('--beta', default=1.0, type=float,
                     help='hyperparameter beta')
 
 # todo check
-parser.add_argument('--moex_prob', default=0.25, type=float,
+parser.add_argument('--moex_prob', default=0, type=float,
                     help='moex_probability')
-parser.add_argument('--lam', default=0.5, type=float,
+parser.add_argument('--lam', default=0.9, type=float,
                     help='moex probability')
 
 parser.set_defaults(bottleneck=True)
@@ -59,7 +59,6 @@ parser.set_defaults(verbose=True)
 
 best_err1 = 100
 best_err5 = 100
-
 
 '''
 Dataset: CiFar100
@@ -81,7 +80,8 @@ def main():
 
     model = torch.nn.DataParallel(model).cuda()
 
-    print(model)
+    # print(model)
+    print('lam = ' + str(args.lam) + 'p =' + str(args.moex_prob))
     print('the number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()])))
 
     # define loss function (criterion) and optimizer
@@ -107,8 +107,17 @@ def main():
         err1, err5, val_loss = validate(val_loader, model, criterion, epoch)
 
         # remember best prediction
+        is_best = err1 <= best_err1
         best_err1 = min(err1, best_err1)
-        best_err5 = best_err5 if (err1 <= best_err1) else err5
+        if is_best:
+            best_err5 = err5
+
+        f = open('MoExRes.txt', 'a+')
+        f.write('lam = ' + str(args.lam) +
+                'epoch = ' + str(epoch) +
+                'Current best accuracy (top-1 and 5 error):' + str(best_err1) + ', ' + str(best_err5))
+        f.close()
+
         print('Current best accuracy (top-1 and 5 error):', best_err1, best_err5)
 
     # Save Result
@@ -159,8 +168,6 @@ def loadData():
 
 # TSN代码风格
 def train(train_loader, model, criterion, optimizer, epoch):
-    batch_time = AverageMeter()
-    data_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
@@ -168,12 +175,10 @@ def train(train_loader, model, criterion, optimizer, epoch):
     # switch to train mode
     model.train()
 
-    end = time.time()
     current_LR = get_learning_rate(optimizer)[0]
     lam = args.lam
     for i, (input, target) in enumerate(train_loader):
         # measure data loading time
-        data_time.update(time.time() - end)
 
         input = input.cuda()
         target = target.cuda()
@@ -210,20 +215,13 @@ def train(train_loader, model, criterion, optimizer, epoch):
         loss.backward()
         optimizer.step()
 
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
         if i % args.print_freq == 0 and args.verbose == True:
             print('Epoch: [{0}/{1}][{2}/{3}]\t'
                   'LR: {LR:.6f}\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                   'Top 1-err {top1.val:.4f} ({top1.avg:.4f})\t'
                   'Top 5-err {top5.val:.4f} ({top5.avg:.4f})'.format(
-                epoch, args.epochs, i, len(train_loader), LR=current_LR, batch_time=batch_time,
-                data_time=data_time, loss=losses, top1=top1, top5=top5))
+                epoch, args.epochs, i, len(train_loader), LR=current_LR, loss=losses, top1=top1, top5=top5))
 
     print('* Epoch: [{0}/{1}]\t Top 1-err {top1.avg:.3f}  Top 5-err {top5.avg:.3f}\t Train Loss {loss.avg:.3f}'.format(
         epoch, args.epochs, top1=top1, top5=top5, loss=losses))
