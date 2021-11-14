@@ -49,7 +49,7 @@ parser.add_argument('--beta', default=1.0, type=float,
                     help='hyperparameter beta')
 
 # todo check
-parser.add_argument('--moex_prob', default=0.7, type=float,
+parser.add_argument('--moex_prob', default=0.5, type=float,
                     help='moex_probability')
 parser.add_argument('--lam', default=0.9, type=float,
                     help='moex probability')
