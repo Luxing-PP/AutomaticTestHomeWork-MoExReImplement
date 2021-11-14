@@ -49,7 +49,7 @@ parser.add_argument('--beta', default=1.0, type=float,
                     help='hyperparameter beta')
 
 # todo check
-parser.add_argument('--moex_prob', default=0, type=float,
+parser.add_argument('--moex_prob', default=0.7, type=float,
                     help='moex_probability')
 parser.add_argument('--lam', default=0.9, type=float,
                     help='moex probability')
@@ -115,18 +115,20 @@ def main():
         f = open('MoExRes.txt', 'a+')
         f.write('lam = ' + str(args.lam) +
                 'epoch = ' + str(epoch) +
-                'Current best accuracy (top-1 and 5 error):' + str(best_err1) + ', ' + str(best_err5))
+                'Current best accuracy (top-1 and 5 error):' + str(best_err1) + ', ' + str(best_err5) + "\n")
         f.close()
 
         print('Current best accuracy (top-1 and 5 error):', best_err1, best_err5)
 
     # Save Result
     f = open('MoExRes.txt', 'a+')
-    f.write('lam = ' + str(args.lam) + ': Best accuracy (top-1 and 5 error):' + str(best_err1) + ', ' + str(best_err5))
+    f.write('lam = ' + str(args.lam) + ': Best accuracy (top-1 and 5 error):' + str(best_err1) + ', ' + str(
+        best_err5) + "\n")
     print('Best accuracy (top-1 and 5 error):', best_err1, best_err5)
     f.close()
 
 
+# 按照parser参数选择数据库读取
 def loadData():
     # 预计算的均值与方差
     normalize = transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
@@ -183,7 +185,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         input = input.cuda()
         target = target.cuda()
 
-        r = np.random.rand(1)  # 进行moex 的概率
+        r = np.random.rand(1)  # 以moex_prob的概率进行混合
         if r < args.moex_prob:
             # generate mixed sample
             rand_index = torch.randperm(input.size()[0]).cuda()
@@ -273,6 +275,7 @@ def validate(val_loader, model, criterion, epoch):
     return top1.avg, top5.avg, losses.avg
 
 
+# 用于存储均值的对象
 class AverageMeter(object):
     """Computes and stores the average and current value"""
 
@@ -328,5 +331,6 @@ def accuracy(output, target, topk=(1,)):
     return res
 
 
+# 程序入口
 if __name__ == '__main__':
     main()
