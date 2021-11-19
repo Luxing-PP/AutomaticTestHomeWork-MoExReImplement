@@ -39,7 +39,7 @@ parser.add_argument('--depth', default=200, type=int,
                     help='depth of the network (default: 32)')
 parser.add_argument('--no-bottleneck', dest='bottleneck', action='store_false',
                     help='to use basicblock for CIFAR datasets (default: bottleneck)')
-parser.add_argument('--dataset', dest='dataset', default='cifar100', type=str,
+parser.add_argument('--dataset', dest='dataset', default='cifar10', type=str,
                     help='dataset (options: cifar10, cifar100, and imagenet)')
 parser.add_argument('--no-verbose', dest='verbose', action='store_false',
                     help='to print the status at every iteration')
@@ -49,7 +49,7 @@ parser.add_argument('--beta', default=1.0, type=float,
                     help='hyperparameter beta')
 
 # todo check
-parser.add_argument('--moex_prob', default=0.5, type=float,
+parser.add_argument('--moex_prob', default=0, type=float,
                     help='moex_probability')
 parser.add_argument('--lam', default=0.9, type=float,
                     help='moex probability')
@@ -147,6 +147,7 @@ def loadData():
     ])
 
     if args.dataset == 'cifar100':
+        print('Loading CiFar100')
         train_loader = torch.utils.data.DataLoader(
             datasets.CIFAR100('../data', train=True, download=True, transform=transform_train),
             batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
@@ -155,6 +156,7 @@ def loadData():
             batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
         numberofclass = 100
     elif args.dataset == 'cifar10':
+        print('Loading CiFar10')
         train_loader = torch.utils.data.DataLoader(
             datasets.CIFAR10('../data', train=True, download=True, transform=transform_train),
             batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
